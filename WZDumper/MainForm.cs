@@ -18,12 +18,12 @@ namespace WzDumper {
             InitializeComponent();
             ToolTip toolTip = new ToolTip();
             toolTip.SetToolTip(includePngMp3Box, "Extracts png and mp3 files along with the generated XML files");
-            string linkTypeText = "Sets the method to handle file links.\n" +
+            string linkTypeText = "Sets the method for creating link files\n" +
                 "Note: Symbolic and Hard links cannot be created when extracting to a remote drive.\n" +
                 "Methods:\n" +
                 "Symbolic (recommended, requires admin privilage, default when running as admin)\n" +
                 "Hard (default when not running as admin, falls back to Copy mode for files that have reached the link limit)\n" +
-                "Copy (creates another copy entirely, previous behavior, use this if extracting to a remote drive)";
+                "Copy (creates another copy entirely, use this if extracting to a remote drive)";
             toolTip.SetToolTip(LinkTypeLabel, linkTypeText);
             toolTip.SetToolTip(LinkTypeComboBox, linkTypeText);
             toolTip.SetToolTip(includeVersionInFolderBox, "Adds the file version to the end of the WZ folder (e.g. Base.wz_v81)");
@@ -41,6 +41,7 @@ namespace WzDumper {
         public TextBox InfoTextBox { get { return Info; } }
         public CancellationTokenSource CancelSource { get; set; }
         public bool ShouldExtractMP3PNG => includePngMp3Box.Checked;
+        public LinkType SelectedLinkType { get; set; }
 
         private bool IsElevated {
             get {
@@ -190,9 +191,6 @@ namespace WzDumper {
                 if (File.Exists(extractFolder)) {
                     extractFolder = GetValidFolderName(extractFolder, true);
                 }
-                /*new Uri(extractFolder).IsUnc;
-                var dir = new DirectoryInfo(extractFolder);
-                var drive = new DriveInfo(dir.Root.ToString());*/
                 if (Directory.Exists(extractFolder)) {
                     var result = MessageBox.Show(extractFolder + " already exists.\r\nDo you want to overwrite that folder?\r\nNote: Clicking No will make a new folder.", "Folder Already Exists", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Warning);
                     if (result == DialogResult.Cancel) {
@@ -221,7 +219,7 @@ namespace WzDumper {
                 } else {
                     UpdateToolstripStatus("Preparing...");
                     CancelSource = new CancellationTokenSource();
-                    CreateSingleDumperThread(regFile, new WzXml(this, extractDir, new DirectoryInfo(extractFolder).Name, includePngMp3Box.Checked, (LinkType)LinkTypeComboBox.SelectedItem), fileName);
+                    CreateSingleDumperThread(regFile, new WzXml(this, extractDir, new DirectoryInfo(extractFolder).Name, includePngMp3Box.Checked, SelectedLinkType), fileName);
                 }
             } else {
                 var allFiles = Directory.GetFiles(filePath, "*.wz");
@@ -297,7 +295,7 @@ namespace WzDumper {
             var startTime = DateTime.Now;
             CancelSource = new CancellationTokenSource();
             string startingPath = new DirectoryInfo(extractFolder).Name;
-            new WzXml(this, open.SelectedPath, startingPath, includePngMp3Box.Checked, (LinkType)LinkTypeComboBox.SelectedItem).DumpImage(img, startingPath);
+            new WzXml(this, open.SelectedPath, startingPath, includePngMp3Box.Checked, SelectedLinkType).DumpImage(img, startingPath);
             open.Dispose();
             img.Dispose();
             fStream.Dispose();
@@ -384,7 +382,7 @@ namespace WzDumper {
                 DumpListWz(listFile, wzName, nFolder, DateTime.Now);
                 listFile.Dispose();
             } else {
-                DirectoryDumperThread(regFile, new WzXml(this, dumpFolder, new DirectoryInfo(nFolder).Name, includePngMp3Box.Checked, (LinkType)LinkTypeComboBox.SelectedItem));
+                DirectoryDumperThread(regFile, new WzXml(this, dumpFolder, new DirectoryInfo(nFolder).Name, includePngMp3Box.Checked, SelectedLinkType));
             }
         }
 
@@ -544,7 +542,7 @@ namespace WzDumper {
             SelectWzFileButton.Enabled = true;
             SelectWzFolder.Enabled = true;
             SelectExtractDestination.Enabled = true;
-            LinkTypeComboBox.Enabled = true;
+            LinkTypeComboBox.Enabled = includePngMp3Box.Checked;
             DumpWzButton.Enabled = true;
             CancelOpButton.Enabled = false;
             includePngMp3Box.Enabled = true;
@@ -606,8 +604,21 @@ namespace WzDumper {
             extractorThreadsNum.Enabled = multiThreadCheckBox.Checked;
         }
 
+        private void CheckOutputPath() {
+            if (outputFolderTB.Text.Length != 0) {
+                bool isUnc = new Uri(outputFolderTB.Text).IsUnc;
+                if (isUnc && includePngMp3Box.Checked && !LinkTypeComboBox.SelectedItem.Equals(LinkType.Copy)) {
+                    var result = MessageBox.Show("Symbolic and hard links cannot be created on remote drives. Do you want to change Link Type to Copy? If this folder is located on your computer, select No.", "Network Path Detected", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+                    if (result == DialogResult.Yes) {
+                        LinkTypeComboBox.SelectedItem = LinkType.Copy;
+                    }
+                }
+            }
+        }
+
         private void IncludePngMp3Box_CheckedChanged(object sender, EventArgs e) {
             LinkTypeComboBox.Enabled = includePngMp3Box.Checked;
+            CheckOutputPath();
         }
 
         private void SelectWzFolder_Click(object sender, EventArgs e) {
@@ -629,6 +640,7 @@ namespace WzDumper {
                 outputFolderTB.Text = open.SelectedPath;
                 DumpWzButton.Enabled = WZFileTB.Text.Length > 0 && outputFolderTB.Text.Length > 0;
                 openFolderButton.Enabled = true;
+                CheckOutputPath();
             }
             open.Dispose();
 
@@ -649,10 +661,10 @@ namespace WzDumper {
                         Close();
                     } catch (Exception) { }
                 } else {
-                    LinkTypeComboBox.SelectedItem = LinkType.Hard;
+                    LinkTypeComboBox.SelectedItem = SelectedLinkType;
                 }
-
             }
+            SelectedLinkType = (LinkType)LinkTypeComboBox.SelectedItem;
         }
 
         private void LinkTypeComboBox_KeyPress(object sender, KeyPressEventArgs e) {

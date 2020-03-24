@@ -364,8 +364,9 @@ namespace WzDumper {
 
         private void WriteSoundProp(string wzPath, WzSoundProperty soundProp, AWzObject uol, bool uolDirCopy, string overridePath) {
             string fileName = CleanFileName(uol != null && !uolDirCopy ? uol.Name : soundProp.Name);
+            if (overridePath == null)
+                CreateDirectory(ref wzPath);
             string newFilePath = overridePath ?? Path.Combine(ExtractPath, wzPath, fileName + ".mp3");
-            CreateDirectory(ref wzPath);
             Form.UpdateToolstripStatus("Dumping " + soundProp.Name + ".mp3 to " + wzPath);
             using (var stream = new FileStream(newFilePath, FileMode.Create, FileAccess.Write)) {
                 stream.Write(soundProp.GetBytes(), 0, soundProp.GetBytes().Length);

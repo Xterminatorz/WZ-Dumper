@@ -391,7 +391,10 @@ namespace WzDumper {
                 if (overrideFile != null)
                     overrideFile.Directory.Create();
                 using (var myFileOut = new FileStream(filePath, FileMode.Create)) {
-                    canvasProp.PngProperty.GetPNG().Save(myFileOut, ImageFormat.Png);
+                    if (canvasProp.PngProperty.GetPNG() == null)
+                        Form.UpdateTextBoxInfo(Form.InfoTextBox, "Error Dumping " + fileName + ".png to " + wzPath, true);
+                    else
+                        canvasProp.PngProperty.GetPNG().Save(myFileOut, ImageFormat.Png);
                 }
                 return true;
             }

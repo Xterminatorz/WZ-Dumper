@@ -428,7 +428,7 @@ namespace WzDumper {
                     UpdateTextBoxInfo(Info, "Finished dumping " + dir.Name, true);
             } catch (Exception ex) {
                 if (!CancelSource.Token.IsCancellationRequested) {
-                    UpdateTextBoxInfo(Info, dir.Name + " Exception: " + ex.Message/* + " " + ex.StackTrace*/, true);
+                    UpdateTextBoxInfo(Info, dir.Name + " Exception: " + ex.Message + " " + ex.StackTrace, true);
                     IsError = true;
                 }
             } finally {

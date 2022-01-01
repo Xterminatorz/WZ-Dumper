@@ -366,7 +366,8 @@ namespace WzDumper {
             }
             if (!String.IsNullOrEmpty(message)) {
                 UpdateTextBoxInfo(Info, "Error while parsing file " + Path.GetFileName(fileName) + "\r\nMessage: " + message + "\r\nContinuing...", true);
-                IsError = true;
+                if (!fileName.EndsWith("List.wz"))
+                    IsError = true;
                 return;
             }
             if (regFile == null && listFile == null)

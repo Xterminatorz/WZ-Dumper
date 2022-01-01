@@ -6,6 +6,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Security.Principal;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -14,6 +15,13 @@ using System.Windows.Forms;
 
 namespace WzDumper {
     public partial class MainForm : Form {
+        [DllImport("kernel32.dll")]
+        public static extern uint GetLastError();
+        [DllImport("Kernel32.dll", CharSet = CharSet.Unicode)]
+        static extern bool CreateHardLink(string lpFileName, string lpExistingFileName, IntPtr lpSecurityAttributes);
+        [DllImport("kernel32.dll", EntryPoint = "CreateSymbolicLinkW", CharSet = CharSet.Unicode, SetLastError = true)]
+        static extern bool CreateSymbolicLink(string lpSymlinkFileName, string lpTargetFileName, int dwFlags);
+
         public MainForm() {
             InitializeComponent();
             ToolTip toolTip = new ToolTip();
@@ -146,6 +154,7 @@ namespace WzDumper {
         }
 
         private void DumpFile(object sender, EventArgs e) {
+            CheckOutputPath();
             UpdateToolstripStatus("Parsing...");
             DisableButtons();
             var filePath = WZFileTB.Text;
@@ -606,12 +615,18 @@ namespace WzDumper {
 
         private void CheckOutputPath() {
             if (outputFolderTB.Text.Length != 0) {
-                bool isUnc = new Uri(outputFolderTB.Text).IsUnc;
-                if (isUnc && includePngMp3Box.Checked && !LinkTypeComboBox.SelectedItem.Equals(LinkType.Copy)) {
-                    var result = MessageBox.Show("Symbolic and hard links cannot be created on remote drives. Do you want to change Link Type to Copy? If this folder is located on your computer, select No.", "Network Path Detected", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
-                    if (result == DialogResult.Yes) {
+                if (includePngMp3Box.Checked && !LinkTypeComboBox.SelectedItem.Equals(LinkType.Copy)) {
+                    String testFile = Path.Combine(outputFolderTB.Text, "test", "file");
+                    String testFile2 = Path.Combine(outputFolderTB.Text, "test", "link");
+                    FileInfo fi = new FileInfo(testFile);
+                    fi.Directory.Create();
+                    fi.Create().Close();
+                    bool res = LinkTypeComboBox.SelectedItem.Equals(LinkType.Symbolic) ? CreateSymbolicLink(testFile2, testFile, 0) : CreateHardLink(testFile2, testFile, IntPtr.Zero);
+                    if (!res) {
+                        MessageBox.Show("A test link could not be created on the output drive. The Link Type will be changed to Copy.", "Unable to Create Test Link", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                         LinkTypeComboBox.SelectedItem = LinkType.Copy;
                     }
+                    fi.Directory.Delete(true);
                 }
             }
         }

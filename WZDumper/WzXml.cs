@@ -234,7 +234,10 @@ namespace WzDumper {
                         bool res = CreateSymbolicLink(linkPath, Path.Combine(ExtractPath, targetDir), 1);
                         if (!res) {
                             uint error = GetLastError();
-                            if (error != 183)
+                            if (error == 183) {
+                                File.Delete(linkPath);
+                                res = CreateSymbolicLink(linkPath, Path.Combine(ExtractPath, targetDir), 1);
+                            } else
                                 Form.UpdateTextBoxInfo(Form.InfoTextBox, "Error creating link: " + GetLastError() + " - " + linkPath + " -> " + targetDir, true);
                         }
                     } else {
@@ -249,20 +252,26 @@ namespace WzDumper {
                     CreateDirectory(ref wzPath);
                     if (LinkType != LinkType.Copy) {
                         string linkPath = Path.Combine(ExtractPath, wzPath, name + ".mp3");
-                        string targetFile = Path.Combine(WzFolderName, uolSoundProp.FullPath.Substring(uolSoundProp.FullPath.IndexOf("\\", StringComparison.OrdinalIgnoreCase) + 1) + ".mp3");
-                        SanitizeTargetPath(ref targetFile);
-                        FileInfo file = new FileInfo(targetFile);
-                        if (!File.Exists(targetFile)) {
+                        int lastIndex = uolSoundProp.FullPath.LastIndexOf("\\");
+                        int startIndex = uolSoundProp.FullPath.IndexOf("\\", StringComparison.OrdinalIgnoreCase) + 1;
+                        string targetPath = Path.Combine(WzFolderName, uolSoundProp.FullPath.Substring(startIndex, uolSoundProp.FullPath.Length - uolSoundProp.FullPath.Substring(lastIndex).Length - startIndex));
+                        string targetFile = uolSoundProp.FullPath.Substring(lastIndex + 1) + ".mp3";
+                        string fullPath = SanitizeTargetPath(targetPath, targetFile);
+                        FileInfo file = new FileInfo(fullPath);
+                        if (!File.Exists(fullPath)) {
                             file.Directory.Create();
-                            WriteSoundProp(wzPath, uolSoundProp, uolProp, copyName, targetFile);
+                            WriteSoundProp(wzPath, uolSoundProp, uolProp, copyName, fullPath);
                         }
-                        bool res = LinkType == LinkType.Symbolic ? CreateSymbolicLink(linkPath, targetFile, 0) : CreateHardLink(linkPath, targetFile, IntPtr.Zero);
+                        bool res = LinkType == LinkType.Symbolic ? CreateSymbolicLink(linkPath, fullPath, 0) : CreateHardLink(linkPath, fullPath, IntPtr.Zero);
                         if (!res) {
                             uint error = GetLastError();
-                            if (error == 1142) {
+                            if (error == 1142)
                                 WriteSoundProp(wzPath, uolSoundProp, uolProp, copyName, null);
-                            } else if (error != 183)
-                                Form.UpdateTextBoxInfo(Form.InfoTextBox, "Error creating link: " + error + " - " + linkPath + " -> " + targetFile, true);
+                            else if (error == 183) {
+                                File.Delete(linkPath);
+                                res = LinkType == LinkType.Symbolic ? CreateSymbolicLink(linkPath, fullPath, 0) : CreateHardLink(linkPath, fullPath, IntPtr.Zero);
+                            }  else
+                                Form.UpdateTextBoxInfo(Form.InfoTextBox, "Error creating link: " + error + " - " + linkPath + " -> " + fullPath, true);
                         }
                     } else {
                         WriteSoundProp(wzPath, uolSoundProp, uolProp, copyName, null);
@@ -318,47 +327,54 @@ namespace WzDumper {
             directory = newDirectory;
         }
 
-        private void SanitizeTargetPath(ref string path) {
+        private string SanitizeTargetPath(string path, string name) {
             path = path.Replace("/", "\\");
-            int index = path.LastIndexOf("\\");
-            string targetDir = path.Substring(0, index);
-            CreateDirectory(ref targetDir);
-            string targetName = CleanFileName(path.Substring(index + 1));
-            path = Path.Combine(ExtractPath, targetDir, targetName);
+            CreateDirectory(ref path);
+            return Path.Combine(ExtractPath, path, CleanFileName(name));
         }
 
         private void DumpCanvasProp(string wzPath, WzCanvasProperty canvasProp, AWzObject uol, bool uolDirCopy) {
             string fileName = CleanFileName(uol != null && !uolDirCopy ? uol.Name : canvasProp.Name);
-            string newFilePath = Path.Combine(ExtractPath, wzPath, fileName + ".png");
             if (LinkType != LinkType.Copy && !(string.IsNullOrEmpty(canvasProp.Outlink) && string.IsNullOrEmpty(canvasProp.Inlink) && uol == null)) {
-                string targetFile;
+                string targetPath, targetFile;
                 if (!string.IsNullOrEmpty(canvasProp.Inlink)) {
-                    targetFile = Path.Combine(CurrentImageDir, canvasProp.Inlink + ".png");
+                    int lastIndex = canvasProp.Inlink.LastIndexOf("/");
+                    targetPath = Path.Combine(CurrentImageDir, canvasProp.Inlink.Substring(0, lastIndex));
+                    targetFile = canvasProp.Inlink.Substring(lastIndex + 1) + ".png";
                 } else if (!string.IsNullOrEmpty(canvasProp.Outlink)) {
-                    targetFile = Path.Combine(WzFolderName, canvasProp.Outlink.Substring(canvasProp.Outlink.IndexOf("/", StringComparison.OrdinalIgnoreCase) + 1) + ".png");
+                    int lastIndex = canvasProp.Outlink.LastIndexOf("/");
+                    int startIndex = canvasProp.Outlink.IndexOf("/", StringComparison.OrdinalIgnoreCase) + 1;
+                    targetPath = Path.Combine(WzFolderName, canvasProp.Outlink.Substring(startIndex, canvasProp.Outlink.Length - canvasProp.Outlink.Substring(lastIndex).Length - startIndex));
+                    targetFile = canvasProp.Outlink.Substring(lastIndex + 1) + ".png";
                 } else {
-                    targetFile = Path.Combine(WzFolderName, canvasProp.FullPath.Substring(canvasProp.FullPath.IndexOf("\\", StringComparison.OrdinalIgnoreCase) + 1) + ".png");
+                    int lastIndex = canvasProp.FullPath.LastIndexOf("\\");
+                    int startIndex = canvasProp.FullPath.IndexOf("\\", StringComparison.OrdinalIgnoreCase) + 1;
+                    targetPath = Path.Combine(WzFolderName, canvasProp.FullPath.Substring(startIndex, canvasProp.FullPath.Length - canvasProp.FullPath.Substring(lastIndex).Length - startIndex));
+                    targetFile = canvasProp.FullPath.Substring(lastIndex + 1) + ".png";
                 }
-                SanitizeTargetPath(ref targetFile);
-                FileInfo file = new FileInfo(targetFile);
+                string fullTargetPath = SanitizeTargetPath(targetPath, targetFile);
+                FileInfo file = new FileInfo(fullTargetPath);
                 bool createLink = true;
-                if (!File.Exists(targetFile)) {
-                    createLink = WritePng(wzPath, fileName, targetFile, canvasProp, file);
+                if (!File.Exists(fullTargetPath)) {
+                    createLink = WritePng(wzPath, fileName, fullTargetPath, canvasProp, file);
                 }
                 if (createLink) {
-                    FileInfo linkPath = new FileInfo(newFilePath);
-                    linkPath.Directory.Create();
-                    bool res = LinkType == LinkType.Symbolic ? CreateSymbolicLink(newFilePath, targetFile, 0) : CreateHardLink(newFilePath, targetFile, IntPtr.Zero);
+                    CreateDirectory(ref wzPath);
+                    string newFilePath = Path.Combine(ExtractPath, wzPath, fileName + ".png");
+                    bool res = LinkType == LinkType.Symbolic ? CreateSymbolicLink(newFilePath, fullTargetPath, 0) : CreateHardLink(newFilePath, fullTargetPath, IntPtr.Zero);
                     if (!res) {
                         uint error = GetLastError();
                         if (error == 1142) // max links reached for file, fallback to copy mode
                             WritePng(wzPath, fileName, newFilePath, canvasProp);
-                        else if (error != 183) // link already exists
-                            Form.UpdateTextBoxInfo(Form.InfoTextBox, "Error creating link: " + error + " - " + newFilePath + " -> " + targetFile, true);
+                        else if (error == 183) { // link already exists, recreate in case old link was diff
+                            File.Delete(newFilePath);
+                            res = LinkType == LinkType.Symbolic ? CreateSymbolicLink(newFilePath, fullTargetPath, 0) : CreateHardLink(newFilePath, fullTargetPath, IntPtr.Zero);
+                        } else
+                            Form.UpdateTextBoxInfo(Form.InfoTextBox, "Error creating link: " + error + " - " + newFilePath + " -> " + fullTargetPath, true);
                     }
                 }
             } else {
-                WritePng(wzPath, fileName, newFilePath, canvasProp);
+                WritePng(wzPath, fileName, null, canvasProp);
             }
         }
 
@@ -390,6 +406,8 @@ namespace WzDumper {
                 CreateDirectory(ref wzPath);
                 if (overrideFile != null)
                     overrideFile.Directory.Create();
+                if (filePath == null)
+                    filePath = Path.Combine(ExtractPath, wzPath, fileName + ".png");
                 using (var myFileOut = new FileStream(filePath, FileMode.Create)) {
                     if (canvasProp.PngProperty.GetPNG() == null)
                         Form.UpdateTextBoxInfo(Form.InfoTextBox, "Error Dumping " + fileName + ".png to " + wzPath, true);

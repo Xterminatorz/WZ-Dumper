@@ -143,16 +143,6 @@ namespace WzDumper {
             return currFolder;
         }
 
-        private void getWzExtensionFiles(string path, List<WzFile> fileList) {
-            FileInfo wzFileInfo = new FileInfo(path);
-            string selFileName = Path.GetFileNameWithoutExtension(wzFileInfo.Name);
-            var extFiles = Directory.GetFiles(wzFileInfo.DirectoryName, selFileName + "???.wz");
-            foreach (string extFile in extFiles) {
-                if (Regex.IsMatch(extFile, selFileName + "[0-9]{3}.wz$", RegexOptions.IgnoreCase))
-                    fileList.Add(new WzFile(extFile, SelectedVersion));
-            }
-        }
-
         private void DumpFile(object sender, EventArgs e) {
             CheckOutputPath();
             UpdateToolstripStatus("Parsing...");
@@ -173,19 +163,19 @@ namespace WzDumper {
                         listFile.ParseWzFile();
                     } else {
                         List<WzFile> s = new List<WzFile>();
-                        getWzExtensionFiles(filePath, s);
                         regFile = new WzFile(filePath, SelectedVersion, s);
                         regFile.ParseWzFile();
                     }
                 } catch (UnauthorizedAccessException) {
-                    if (regFile != null) regFile.Dispose();
+                    regFile?.Dispose();
                     MessageBox.Show("Please re-run this program as an administrator.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Stop);
                     UpdateToolstripStatus("");
                     EnableButtons();
                     return;
                 } catch (Exception ex) {
-                    if (regFile != null) regFile.Dispose();
+                    regFile?.Dispose();
                     MessageBox.Show("An error occurred while parsing this file: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    Info.AppendText(ex.StackTrace);
                     UpdateToolstripStatus("");
                     EnableButtons();
                     return;
@@ -203,7 +193,7 @@ namespace WzDumper {
                 if (Directory.Exists(extractFolder)) {
                     var result = MessageBox.Show(extractFolder + " already exists.\r\nDo you want to overwrite that folder?\r\nNote: Clicking No will make a new folder.", "Folder Already Exists", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Warning);
                     if (result == DialogResult.Cancel) {
-                        if (regFile != null) regFile.Dispose();
+                        regFile?.Dispose();
                         UpdateToolstripStatus("");
                         EnableButtons();
                         return;
@@ -231,15 +221,27 @@ namespace WzDumper {
                     CreateSingleDumperThread(regFile, new WzXml(this, extractDir, new DirectoryInfo(extractFolder).Name, includePngMp3Box.Checked, SelectedLinkType), fileName);
                 }
             } else {
+                string filesFound = "WZ Files Found: ";
                 var allFiles = Directory.GetFiles(filePath, "*.wz");
-                if (allFiles.Length != 0) {
-                    string filesFound = "WZ Files Found: ";
+                var nextLevelFiles = GetWzFilesInFolder(filePath);
+                if (allFiles.Length != 0 || nextLevelFiles.Count != 0) {
+                    if (allFiles.Length == 0)
+                        allFiles = nextLevelFiles.ToArray();
+                    allFiles = allFiles.Where(fileName => !Regex.IsMatch(fileName, "[0-9]{3}.wz$", RegexOptions.IgnoreCase)).ToArray();
                     foreach (var fileName in allFiles) {
                         filesFound += Path.GetFileName(fileName) + ", ";
                     }
                     Info.AppendText(filesFound.Substring(0, filesFound.Length - 2) + "\r\n");
-                    allFiles = allFiles.Where(fileName => !Regex.IsMatch(fileName, "[0-9]{3}.wz$", RegexOptions.IgnoreCase)).ToArray(); ;
-                    Array.Sort(allFiles, Compare);
+                    if (allFiles.Length == 0) {
+                        Array.Sort(allFiles, FileSizeCompare);
+                    } else {
+                        SortedDictionary<long, string> fileOrder = new SortedDictionary<long, string>();
+                        foreach (var fileName in allFiles) {
+                            FileInfo wzFile = new FileInfo(fileName);
+                            fileOrder.Add(DirSize(wzFile.Directory), fileName);
+                        }
+                        allFiles = fileOrder.Values.ToArray();
+                    }
                     CreateMultipleDumperThreads(filePath, allFiles, outputFolderTB.Text);
                 } else {
                     MessageBox.Show("There are no WZ Files located in the selected folder. Please choose a different folder.", "No WZ Files Found", MessageBoxButtons.OK, MessageBoxIcon.Error);
@@ -247,6 +249,19 @@ namespace WzDumper {
                     EnableButtons();
                 }
             }
+        }
+
+        private static long DirSize(DirectoryInfo dirInfo) {
+            long size = 0;
+            FileInfo[] fis = dirInfo.GetFiles();
+            foreach (FileInfo fi in fis) {
+                size += fi.Length;
+            }
+            DirectoryInfo[] dis = dirInfo.GetDirectories();
+            foreach (DirectoryInfo di in dis) {
+                size += DirSize(di);
+            }
+            return size;
         }
 
         private void DumpXmlFromWzImage(string path) {
@@ -350,18 +365,17 @@ namespace WzDumper {
                     listFile.ParseWzFile();
                 } else {
                     List<WzFile> s = new List<WzFile>();
-                    getWzExtensionFiles(fileName, s);
                     regFile = new WzFile(fileName, selectedValue, s);
                     regFile.ParseWzFile();
                 }
             } catch (IOException ex) {
-                if (regFile != null) regFile.Dispose();
+                regFile?.Dispose();
                 message = "An IO error occurred: " + ex.Message;
             } catch (UnauthorizedAccessException) {
-                if (regFile != null) regFile.Dispose();
+                regFile?.Dispose();
                 message = "Please re-run this program as an administrator.";
             } catch (Exception ex) {
-                if (regFile != null) regFile.Dispose();
+                regFile?.Dispose();
                 message = "An error occurred while parsing this file: " + ex.Message;
             }
             if (!String.IsNullOrEmpty(message)) {
@@ -400,12 +414,13 @@ namespace WzDumper {
             IsFinished = false;
             var startTime = DateTime.Now;
             CancelSource = new CancellationTokenSource();
+            var version = SelectedVersion;
             var t = Task.Factory.StartNew(() => {
                 var pOps = new ParallelOptions { MaxDegreeOfParallelism = multiThreadCheckBox.Checked ? Math.Min(((string[])files).Length, (int)extractorThreadsNum.Value) : 1 };
                 Parallel.ForEach(files, pOps, file => {
                     if (CancelSource.Token.IsCancellationRequested)
                         return;
-                    InitThread(file, dumpFolder, SelectedVersion);
+                    InitThread(file, dumpFolder, version);
                 });
             });
             t.ContinueWith(p => {
@@ -474,8 +489,7 @@ namespace WzDumper {
         private void CancelOperation(object sender, EventArgs e) {
             if (MessageBox.Show("Are you sure you want to cancel the current operation?", "Cancel", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
                 return;
-            if (CancelSource != null)
-                CancelSource.Cancel(true);
+            CancelSource?.Cancel(true);
             CancelOpButton.Enabled = false;
             UpdateTextBoxInfo(Info, "Canceling... Waiting for the current image(s) to finish dumping...", true);
         }
@@ -513,8 +527,7 @@ namespace WzDumper {
                 return;
             if (MessageBox.Show("You can not close the program while it is still dumping. Do you wish to cancel the operation?", "Warning", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes) {
                 Exit = true;
-                if (CancelSource != null)
-                    CancelSource.Cancel(true);
+                CancelSource?.Cancel(true);
             } else {
                 e.Cancel = true;
             }
@@ -583,7 +596,7 @@ namespace WzDumper {
             Info.Focus();
         }
 
-        private static int Compare(string x, string y) {
+        private static int FileSizeCompare(string x, string y) {
             var file1 = new FileInfo(x);
             var file2 = new FileInfo(y);
             return Convert.ToInt32(file1.Length - file2.Length);
@@ -637,11 +650,20 @@ namespace WzDumper {
             CheckOutputPath();
         }
 
+        public List<String> GetWzFilesInFolder(String path) {
+            List<String> wzFiles = new List<String>();
+            string[] dirs = Directory.GetDirectories(path);
+            foreach (var dir in dirs) {
+                wzFiles.AddRange(Directory.GetFiles(dir, "*.wz"));
+            }
+            return wzFiles;
+        }
+
         private void SelectWzFolder_Click(object sender, EventArgs e) {
             var open = new FolderBrowserDialog { Description = "Select the folder that contains the WZ Files you wish to dump" };
             if (open.ShowDialog() == DialogResult.OK) {
                 var allFiles = Directory.GetFiles(open.SelectedPath, "*.wz");
-                if (allFiles.Length == 0) {
+                if (allFiles.Length == 0 && GetWzFilesInFolder(open.SelectedPath).Count == 0) {
                     MessageBox.Show("There are no WZ Files located in the selected folder. Please choose a different folder.", "No WZ Files Found", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 } else {
                     InputSelected(open.SelectedPath);

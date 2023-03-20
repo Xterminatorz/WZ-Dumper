@@ -236,7 +236,7 @@ namespace WzDumper {
                             uint error = GetLastError();
                             if (error == 183) {
                                 File.Delete(linkPath);
-                                res = CreateSymbolicLink(linkPath, Path.Combine(ExtractPath, targetDir), 1);
+                                CreateSymbolicLink(linkPath, Path.Combine(ExtractPath, targetDir), 1);
                             } else
                                 Form.UpdateTextBoxInfo(Form.InfoTextBox, "Error creating link: " + GetLastError() + " - " + linkPath + " -> " + targetDir, true);
                         }
@@ -269,7 +269,7 @@ namespace WzDumper {
                                 WriteSoundProp(wzPath, uolSoundProp, uolProp, copyName, null);
                             else if (error == 183) {
                                 File.Delete(linkPath);
-                                res = LinkType == LinkType.Symbolic ? CreateSymbolicLink(linkPath, fullPath, 0) : CreateHardLink(linkPath, fullPath, IntPtr.Zero);
+                                _ = LinkType == LinkType.Symbolic ? CreateSymbolicLink(linkPath, fullPath, 0) : CreateHardLink(linkPath, fullPath, IntPtr.Zero);
                             }  else
                                 Form.UpdateTextBoxInfo(Form.InfoTextBox, "Error creating link: " + error + " - " + linkPath + " -> " + fullPath, true);
                         }
@@ -368,7 +368,7 @@ namespace WzDumper {
                             WritePng(wzPath, fileName, newFilePath, canvasProp);
                         else if (error == 183) { // link already exists, recreate in case old link was diff
                             File.Delete(newFilePath);
-                            res = LinkType == LinkType.Symbolic ? CreateSymbolicLink(newFilePath, fullTargetPath, 0) : CreateHardLink(newFilePath, fullTargetPath, IntPtr.Zero);
+                            _ = LinkType == LinkType.Symbolic ? CreateSymbolicLink(newFilePath, fullTargetPath, 0) : CreateHardLink(newFilePath, fullTargetPath, IntPtr.Zero);
                         } else
                             Form.UpdateTextBoxInfo(Form.InfoTextBox, "Error creating link: " + error + " - " + newFilePath + " -> " + fullTargetPath, true);
                     }
@@ -382,8 +382,9 @@ namespace WzDumper {
             string fileName = CleanFileName(uol != null && !uolDirCopy ? uol.Name : soundProp.Name);
             if (overridePath == null)
                 CreateDirectory(ref wzPath);
-            string newFilePath = overridePath ?? Path.Combine(ExtractPath, wzPath, fileName + ".mp3");
-            Form.UpdateToolstripStatus("Dumping " + soundProp.Name + ".mp3 to " + newFilePath);
+            string ext = soundProp.GetExtension();
+            string newFilePath = overridePath ?? Path.Combine(ExtractPath, wzPath, fileName + ext);
+            Form.UpdateToolstripStatus("Dumping " + soundProp.Name + ext + " to " + newFilePath);
             using (var stream = new FileStream(newFilePath, FileMode.Create, FileAccess.Write)) {
                 stream.Write(soundProp.GetBytes(), 0, soundProp.GetBytes().Length);
             }
@@ -404,8 +405,7 @@ namespace WzDumper {
             }
             if (canvasProp != null) {
                 CreateDirectory(ref wzPath);
-                if (overrideFile != null)
-                    overrideFile.Directory.Create();
+                overrideFile?.Directory.Create();
                 if (filePath == null)
                     filePath = Path.Combine(ExtractPath, wzPath, fileName + ".png");
                 using (var myFileOut = new FileStream(filePath, FileMode.Create)) {

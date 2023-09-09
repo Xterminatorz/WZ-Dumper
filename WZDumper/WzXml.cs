@@ -150,6 +150,16 @@ namespace WzDumper {
                         tw.WriteValue(nullProp.Name);
                         tw.WriteEndElement();
                         break;
+                    case WzPropertyType.RawData:
+                        var rawDataProp = (WzRawDataProperty)property;
+                        tw.WriteStartElement("raw");
+                        tw.WriteStartAttribute("name");
+                        tw.WriteValue(rawDataProp.Name);
+                        tw.WriteEndElement();
+                        /*if (IncludePngMp3) {
+                            WriteRawData(wzPath, rawDataProp, null, false, null);
+                        }*/
+                        break;
                     case WzPropertyType.Short:
                         var shortProp = (WzShortProperty)property;
                         tw.WriteStartElement("short");
@@ -377,6 +387,17 @@ namespace WzDumper {
                 WritePng(wzPath, fileName, null, canvasProp);
             }
         }
+
+        /*private void WriteRawData(string wzPath, WzRawDataProperty rawDataProp, AWzObject uol, bool uolDirCopy, string overridePath) {
+            string fileName = CleanFileName(uol != null && !uolDirCopy ? uol.Name : rawDataProp.Name);
+            if (overridePath == null)
+                CreateDirectory(ref wzPath);
+            string newFilePath = overridePath ?? Path.Combine(ExtractPath, wzPath, fileName);
+            Form.UpdateToolstripStatus("Dumping " + rawDataProp.Name + " to " + newFilePath);
+            using (var stream = new FileStream(newFilePath, FileMode.Create, FileAccess.Write)) {
+                stream.Write(rawDataProp.GetBytes(), 0, rawDataProp.GetBytes().Length);
+            }
+        }*/
 
         private void WriteSoundProp(string wzPath, WzSoundProperty soundProp, AWzObject uol, bool uolDirCopy, string overridePath) {
             string fileName = CleanFileName(uol != null && !uolDirCopy ? uol.Name : soundProp.Name);

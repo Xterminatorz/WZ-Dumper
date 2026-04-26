@@ -155,6 +155,7 @@ namespace WzDumper {
                         tw.WriteStartElement("raw");
                         tw.WriteStartAttribute("name");
                         tw.WriteValue(rawDataProp.Name);
+                        DumpData(tw, rawDataProp.WzProperties, wzPath);
                         tw.WriteEndElement();
                         /*if (IncludePngMp3) {
                             WriteRawData(wzPath, rawDataProp, null, false, null);
@@ -174,6 +175,7 @@ namespace WzDumper {
                         tw.WriteStartElement("sound");
                         tw.WriteStartAttribute("name");
                         tw.WriteValue(soundProp.Name);
+                        DumpData(tw, soundProp.WzProperties, wzPath);
                         tw.WriteEndElement();
                         if (IncludePngMp3) {
                             WriteSoundProp(wzPath, soundProp, null, false, null);
@@ -220,6 +222,14 @@ namespace WzDumper {
                         tw.WriteValue(vectorProp.X.Value);
                         tw.WriteStartAttribute("y");
                         tw.WriteValue(vectorProp.Y.Value);
+                        tw.WriteEndElement();
+                        break;
+                    case WzPropertyType.Video:
+                        var videoProp = (WzVideoProperty)property;
+                        tw.WriteStartElement("video");
+                        tw.WriteStartAttribute("name");
+                        tw.WriteValue(videoProp.Name);
+                        DumpData(tw, videoProp.WzProperties, wzPath);
                         tw.WriteEndElement();
                         break;
                 }

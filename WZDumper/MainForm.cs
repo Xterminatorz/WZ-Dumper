@@ -12,6 +12,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using WzDumper.WZDumper;
 
 namespace WzDumper {
     public partial class MainForm : Form {
@@ -37,6 +38,7 @@ namespace WzDumper {
             toolTip.SetToolTip(includeVersionInFolderBox, "Adds the file version to the end of the WZ folder (e.g. Base.wz_v81)");
             toolTip.SetToolTip(multiThreadCheckBox, "This only applies when dumping from a folder.\nDumps multiple WZ files concurrently depending on the number of extractor threads.");
             toolTip.SetToolTip(extractorThreadsNum, "Sets the max number of WZ files you want to extract at once.\nDefault is the number of processor threads available.");
+            toolTip.SetToolTip(extractAsJson, "Extract as JSON files instead of XML");
             toolTip.ReshowDelay = 500;
             toolTip.ShowAlways = true;
             extractorThreadsNum.Maximum = Environment.ProcessorCount;
@@ -218,7 +220,8 @@ namespace WzDumper {
                 } else {
                     UpdateToolstripStatus("Preparing...");
                     CancelSource = new CancellationTokenSource();
-                    CreateSingleDumperThread(regFile, new WzXml(this, extractDir, new DirectoryInfo(extractFolder).Name, includePngMp3Box.Checked, SelectedLinkType), fileName);
+                    var extractor = extractAsJson.Checked ? (WzExtractor)new WzJsonExtractor(this, extractDir, new DirectoryInfo(extractFolder).Name, includePngMp3Box.Checked, SelectedLinkType) : new WzXmlExtractor(this, extractDir, new DirectoryInfo(extractFolder).Name, includePngMp3Box.Checked, SelectedLinkType);
+                    CreateSingleDumperThread(regFile, extractor, fileName);
                 }
             } else {
                 string filesFound = "WZ Files Found: ";
@@ -319,7 +322,10 @@ namespace WzDumper {
             var startTime = DateTime.Now;
             CancelSource = new CancellationTokenSource();
             string startingPath = new DirectoryInfo(extractFolder).Name;
-            new WzXml(this, open.SelectedPath, startingPath, includePngMp3Box.Checked, SelectedLinkType).DumpImage(img, startingPath);
+            if (extractAsJson.Checked)
+                new WzJsonExtractor(this, open.SelectedPath, startingPath, includePngMp3Box.Checked, SelectedLinkType).DumpImage(img, startingPath);
+            else
+                new WzXmlExtractor(this, open.SelectedPath, startingPath, includePngMp3Box.Checked, SelectedLinkType).DumpImage(img, startingPath);
             open.Dispose();
             img.Dispose();
             fStream.Dispose();
@@ -330,7 +336,7 @@ namespace WzDumper {
             EnableButtons();
         }
 
-        private void CreateSingleDumperThread(WzFile file, WzXml wzxml, string fileName) {
+        private void CreateSingleDumperThread(WzFile file, WzExtractor wzxml, string fileName) {
             IsFinished = false;
             var startTime = DateTime.Now;
             var mainTask = Task.Factory.StartNew(() => DirectoryDumperThread(file, wzxml, true));
@@ -406,7 +412,8 @@ namespace WzDumper {
                 DumpListWz(listFile, wzName, nFolder, DateTime.Now);
                 listFile.Dispose();
             } else {
-                DirectoryDumperThread(regFile, new WzXml(this, dumpFolder, new DirectoryInfo(nFolder).Name, includePngMp3Box.Checked, SelectedLinkType));
+                var extractor = extractAsJson.Checked ? (WzExtractor)new WzJsonExtractor(this, dumpFolder, new DirectoryInfo(nFolder).Name, includePngMp3Box.Checked, SelectedLinkType) : new WzXmlExtractor(this, dumpFolder, new DirectoryInfo(nFolder).Name, includePngMp3Box.Checked, SelectedLinkType);
+                DirectoryDumperThread(regFile, extractor);
             }
         }
 
@@ -444,7 +451,7 @@ namespace WzDumper {
             }, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.FromCurrentSynchronizationContext());
         }
 
-        private void DirectoryDumperThread(WzDirectory dir, WzXml wzxml, bool singleDump = false) {
+        private void DirectoryDumperThread(WzDirectory dir, WzExtractor wzxml, bool singleDump = false) {
             if (CancelSource.Token.IsCancellationRequested)
                 return;
             try {
@@ -572,6 +579,7 @@ namespace WzDumper {
             includeVersionInFolderBox.Enabled = true;
             MapleVersionComboBox.Enabled = true;
             multiThreadCheckBox.Enabled = true;
+            extractAsJson.Enabled = true;
             if (!string.IsNullOrEmpty(outputFolderTB.Text))
                 openFolderButton.Focus();
             else
@@ -591,6 +599,7 @@ namespace WzDumper {
             includeVersionInFolderBox.Enabled = false;
             MapleVersionComboBox.Enabled = false;
             multiThreadCheckBox.Enabled = false;
+            extractAsJson.Enabled = false;
             extractorThreadsLabel.Enabled = false;
             extractorThreadsNum.Enabled = false;
             Info.Focus();

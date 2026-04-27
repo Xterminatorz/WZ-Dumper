@@ -30,6 +30,7 @@
             this.Info = new System.Windows.Forms.TextBox();
             this.includePngMp3Box = new System.Windows.Forms.CheckBox();
             this.statusStrip1 = new System.Windows.Forms.StatusStrip();
+            this.toolStripStatusLabel1 = new WzDumper.SafeToolStripLabel();
             this.CancelOpButton = new System.Windows.Forms.Button();
             this.versionBox = new System.Windows.Forms.TextBox();
             this.label2 = new System.Windows.Forms.Label();
@@ -54,7 +55,7 @@
             this.SelectExtractDestination = new System.Windows.Forms.Button();
             this.LinkTypeLabel = new System.Windows.Forms.Label();
             this.LinkTypeComboBox = new System.Windows.Forms.ComboBox();
-            this.toolStripStatusLabel1 = new WzDumper.SafeToolStripLabel();
+            this.extractAsJson = new System.Windows.Forms.CheckBox();
             this.statusStrip1.SuspendLayout();
             this.menuStrip1.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.extractorThreadsNum)).BeginInit();
@@ -119,6 +120,11 @@
             this.statusStrip1.Size = new System.Drawing.Size(704, 22);
             this.statusStrip1.TabIndex = 17;
             this.statusStrip1.Text = "statusStrip1";
+            // 
+            // toolStripStatusLabel1
+            // 
+            this.toolStripStatusLabel1.Name = "toolStripStatusLabel1";
+            this.toolStripStatusLabel1.Size = new System.Drawing.Size(0, 17);
             // 
             // CancelOpButton
             // 
@@ -379,16 +385,23 @@
             this.LinkTypeComboBox.SelectedIndexChanged += new System.EventHandler(this.LinkTypeComboBox_SelectedIndexChanged);
             this.LinkTypeComboBox.KeyPress += new System.Windows.Forms.KeyPressEventHandler(this.LinkTypeComboBox_KeyPress);
             // 
-            // toolStripStatusLabel1
+            // extractAsJson
             // 
-            this.toolStripStatusLabel1.Name = "toolStripStatusLabel1";
-            this.toolStripStatusLabel1.Size = new System.Drawing.Size(0, 17);
+            this.extractAsJson.Anchor = System.Windows.Forms.AnchorStyles.Bottom;
+            this.extractAsJson.AutoSize = true;
+            this.extractAsJson.Location = new System.Drawing.Point(336, 416);
+            this.extractAsJson.Name = "extractAsJson";
+            this.extractAsJson.Size = new System.Drawing.Size(104, 17);
+            this.extractAsJson.TabIndex = 26;
+            this.extractAsJson.Text = "Extract as JSON";
+            this.extractAsJson.UseVisualStyleBackColor = true;
             // 
             // MainForm
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(704, 461);
+            this.Controls.Add(this.extractAsJson);
             this.Controls.Add(this.extractorThreadsNum);
             this.Controls.Add(this.extractorThreadsLabel);
             this.Controls.Add(this.LinkTypeComboBox);
@@ -462,5 +475,6 @@
         private System.Windows.Forms.Button SelectExtractDestination;
         private System.Windows.Forms.Label LinkTypeLabel;
         private System.Windows.Forms.ComboBox LinkTypeComboBox;
+        private System.Windows.Forms.CheckBox extractAsJson;
     }
 }

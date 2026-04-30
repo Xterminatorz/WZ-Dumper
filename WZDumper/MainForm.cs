@@ -235,7 +235,7 @@ namespace WzDumper {
                         filesFound += Path.GetFileName(fileName) + ", ";
                     }
                     Info.AppendText(filesFound.Substring(0, filesFound.Length - 2) + "\r\n");
-                    if (allFiles.Length == 0) {
+                    if (allFiles.Length != 0 && nextLevelFiles.Count == 0) {
                         Array.Sort(allFiles, FileSizeCompare);
                     } else {
                         SortedDictionary<long, string> fileOrder = new SortedDictionary<long, string>();

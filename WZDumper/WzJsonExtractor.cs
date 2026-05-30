@@ -1,164 +1,129 @@
-﻿using MapleLib.WzLib;
-using MapleLib.WzLib.WzProperties;
-using System.Collections.Generic;
+﻿using System;
 using System.IO;
-using System.Linq;
 using System.Text.Encodings.Web;
 using System.Text.Json;
-
+using WzComparerR2.WzLib;
 
 namespace WzDumper.WZDumper {
     internal class WzJsonExtractor : WzExtractor {
+
+        private readonly MemoryStream memoryStream = new MemoryStream();
+        private readonly Utf8JsonWriter writer;
+        private static readonly JsonEncodedText encWidth = JsonEncodedText.Encode("width");
+        private static readonly JsonEncodedText encHeight = JsonEncodedText.Encode("height");
+        //private static readonly JsonEncodedText encFormat = JsonEncodedText.Encode("format");
+        //private static readonly JsonEncodedText encScale = JsonEncodedText.Encode("scale");
+        //private static readonly JsonEncodedText encPages = JsonEncodedText.Encode("pages");
+        private static readonly JsonEncodedText encX = JsonEncodedText.Encode("x");
+        private static readonly JsonEncodedText encY = JsonEncodedText.Encode("y");
+
+        public WzJsonExtractor(MainForm form, string parentPath, string wzStartingDir, bool extractAll, LinkType type) : base(form, parentPath, wzStartingDir, extractAll, type) {
+            writer = new Utf8JsonWriter(memoryStream, options);
+        }
 
         private JsonWriterOptions options = new JsonWriterOptions {
             Indented = true, // Set to false for better performance/smaller size
             Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
         };
 
-        private static readonly JsonEncodedText encType = JsonEncodedText.Encode("type");
-        private static readonly JsonEncodedText encCanvas = JsonEncodedText.Encode("canvas");
-        private static readonly JsonEncodedText encWidth = JsonEncodedText.Encode("width");
-        private static readonly JsonEncodedText encHeight = JsonEncodedText.Encode("height");
-        private static readonly JsonEncodedText encConvex = JsonEncodedText.Encode("convex");
-        private static readonly JsonEncodedText encUol = JsonEncodedText.Encode("uol");
-        private static readonly JsonEncodedText encRaw = JsonEncodedText.Encode("raw");
-        private static readonly JsonEncodedText encValue = JsonEncodedText.Encode("value");
-        private static readonly JsonEncodedText encX = JsonEncodedText.Encode("x");
-        private static readonly JsonEncodedText encY = JsonEncodedText.Encode("y");
-        private static readonly JsonEncodedText encVector = JsonEncodedText.Encode("vector");
-        private static readonly JsonEncodedText encVideo = JsonEncodedText.Encode("video");
-
-        private readonly MemoryStream memoryStream = new MemoryStream();
-        private readonly Utf8JsonWriter writer;
-
-        public WzJsonExtractor(MainForm form, string parentPath, string wzStartingDir, bool extractAll, LinkType type) : base(form, parentPath, wzStartingDir, extractAll, type) {
-            writer = new Utf8JsonWriter(memoryStream, options);
-        }
-
-        public override void DumpDir(WzDirectory mainDir, string wzDir) {
-            base.DumpDir(mainDir, wzDir);
-        }
-
-        public override void DumpImage(WzImage img, string mainDir) {
+        public override void DumpImage(Wz_Image img, string mainDir) {
             Form.UpdateToolstripStatus("Dumping " + img.Name + ".json to " + mainDir);
-            writer.WriteStartObject();
-            writer.WriteStartObject(img.Name);
+            img.TryExtract();
             CurrentImageDir = Path.Combine(mainDir, img.Name);
-            DumpData(writer, img.WzProperties, CurrentImageDir);
-            writer.WriteEndObject();
+            writer.WriteStartObject();
+            DumpData(writer, img.Node, CurrentImageDir, mainDir.EndsWith("_Canvas"));
             writer.WriteEndObject();
             writer.Flush();
             File.WriteAllBytes(ExtractPath + "\\" + mainDir + "\\" + img.Name + ".json", memoryStream.ToArray());
             memoryStream.SetLength(0);
             writer.Reset(memoryStream);
-            img.PartialDispose();
+            img.Unextract();
+            foreach (var img2 in base.linkedImages)
+                img2.Unextract();
         }
 
-        private void DumpData(Utf8JsonWriter tw, IEnumerable<AWzImageProperty> props, string wzPath) {
-            foreach (var property in props.Where(property => property != null)) {
-                switch (property.PropertyType) {
-                    case WzPropertyType.ByteFloat:
-                        var byteFloatProp = (WzByteFloatProperty)property;
-                        tw.WriteString(byteFloatProp.Name, byteFloatProp.Value.ToString("0.0######", Cul));
+        private void DumpData(Utf8JsonWriter writer, Wz_Node node, string wzPath, bool isCanvas) {
+            object value = node.Value;
+            string nodeName = node.Text.Trim();
+            bool closeObject = true;
+            if (node.IsProperty) {
+                writer.WriteStartObject(nodeName);
+            } else if (value == null) {
+                closeObject = false;
+                writer.WriteNull(nodeName);
+            } else if (value is Wz_Png png) {
+                writer.WriteStartObject(nodeName);
+                writer.WriteNumber(encWidth, png.Width);
+                writer.WriteNumber(encHeight, png.Height);
+                //writer.WriteNumber(encFormat, (int)png.Format);
+                //writer.WriteNumber(encScale, png.Scale);
+                //writer.WriteNumber(encPages, png.Pages);
+                if (IncludePngMp3 && !(LinkType == LinkType.Copy && isCanvas)) {
+                    if (!node.ParentNode.IsProperty)
+                        wzPath = Path.Combine(wzPath, node.ParentNode.Text);
+                    DumpCanvasProp(wzPath, node, null, false);
+                }
+            } else if (value is Wz_Uol uol) {
+                closeObject = false;
+                writer.WriteString(nodeName, uol.Uol);
+                if (IncludePngMp3) {
+                    var obj = uol.HandleUol(node);
+                    if (obj != null) {
+                        DumpFromUOL(node, obj, wzPath);
+                    }
+                }
+            } else if (value is Wz_Vector vector) {
+                writer.WriteStartObject(nodeName);
+                writer.WriteNumber(encX, vector.X);
+                writer.WriteNumber(encY, vector.Y);
+            } else if (value is Wz_Sound) {
+                writer.WriteStartObject(nodeName);
+                if (IncludePngMp3) {
+                    WriteSoundProp(wzPath, node, null, false, null);
+                }
+            } else if (value is Wz_Convex convex) {
+                closeObject = false;
+                writer.WriteStartArray(nodeName);
+                foreach (var point in convex.Points) {
+                    writer.WriteStartObject();
+                    writer.WriteNumber(encX, point.X);
+                    writer.WriteNumber(encY, point.Y);
+                    writer.WriteEndObject();
+                }
+                writer.WriteEndArray();
+            } else if (value is Wz_RawData) {
+                writer.WriteStartObject(nodeName);
+            } else if (value is Wz_Video) {
+                writer.WriteStartObject(nodeName);
+            } else {
+                closeObject = false;
+                switch (value) {
+                    case float f:
+                        writer.WriteString(nodeName, f.ToString("0.0########", Cul));
                         break;
-                    case WzPropertyType.Canvas:
-                        var canvasProp = (WzCanvasProperty)property;
-                        if (IncludePngMp3) {
-                            DumpCanvasProp(wzPath, canvasProp, null, false);
-                        }
-                        tw.WriteStartObject(canvasProp.Name);
-                        tw.WriteString(encType, encCanvas);
-                        tw.WriteNumber(encWidth, canvasProp.PngProperty.Width);
-                        tw.WriteNumber(encHeight, canvasProp.PngProperty.Height);
-                        DumpData(tw, canvasProp.WzProperties, wzPath);
-                        tw.WriteEndObject();
+                    case double d:
+                        writer.WriteString(nodeName, d.ToString("0.0################", Cul));
                         break;
-                    case WzPropertyType.CompressedInt:
-                        var compressedIntProp = (WzCompressedIntProperty)property;
-                        tw.WriteNumber(compressedIntProp.Name, compressedIntProp.Value);
+                    case short s:
+                        writer.WriteNumber(nodeName, s);
                         break;
-                    case WzPropertyType.CompressedLong:
-                        var compressedLongProp = (WzCompressedLongProperty)property;
-                        tw.WriteNumber(compressedLongProp.Name, compressedLongProp.Value);
+                    case int i:
+                        writer.WriteNumber(nodeName, i);
                         break;
-                    case WzPropertyType.Convex:
-                        var convexProp = (WzConvexProperty)property;
-                        tw.WriteStartObject(convexProp.Name);
-                        tw.WriteString(encType, encConvex);
-                        DumpData(tw, convexProp.WzProperties, wzPath);
-                        tw.WriteEndObject();
+                    case long l:
+                        writer.WriteNumber(nodeName, l);
                         break;
-                    case WzPropertyType.Double:
-                        var doubleProp = (WzDoubleProperty)property;
-                        tw.WriteString(doubleProp.Name, doubleProp.Value.ToString("0.0###############", Cul));
-                        break;
-                    case WzPropertyType.Null:
-                        var nullProp = (WzNullProperty)property;
-                        tw.WriteNull(nullProp.Name);
-                        break;
-                    case WzPropertyType.RawData:
-                        var rawDataProp = (WzRawDataProperty)property;
-                        tw.WriteStartObject(rawDataProp.Name);
-                        tw.WriteString(encType, encRaw);
-                        DumpData(tw, rawDataProp.WzProperties, wzPath);
-                        tw.WriteEndObject();
-                        /*if (IncludePngMp3) {
-                            WriteRawData(wzPath, rawDataProp, null, false, null);
-                        }*/
-                        break;
-                    case WzPropertyType.Short:
-                        var shortProp = (WzShortProperty)property;
-                        tw.WriteNumber(shortProp.Name, shortProp.Value);
-                        break;
-                    case WzPropertyType.Sound:
-                        var soundProp = (WzSoundProperty)property;
-                        tw.WriteStartObject(soundProp.Name);
-                        DumpData(tw, soundProp.WzProperties, wzPath);
-                        tw.WriteEndObject();
-                        if (IncludePngMp3) {
-                            WriteSoundProp(wzPath, soundProp, null, false, null);
-                        }
-                        break;
-                    case WzPropertyType.String:
-                        var stringProp = (WzStringProperty)property;
-                        tw.WriteString(stringProp.Name, stringProp.Value);
-                        break;
-                    case WzPropertyType.SubProperty:
-                        var subProp = (WzSubProperty)property;
-                        tw.WriteStartObject(subProp.Name);
-                        DumpData(tw, subProp.WzProperties, Path.Combine(wzPath, subProp.Name));
-                        tw.WriteEndObject();
-                        break;
-                    case WzPropertyType.UOL:
-                        var uolProp = (WzUOLProperty)property;
-                        tw.WriteStartObject(uolProp.Name);
-                        tw.WriteString(encType, encUol);
-                        tw.WriteString(encValue, uolProp.Value);
-                        tw.WriteEndObject();
-                        if (IncludePngMp3) {
-                            var obj = uolProp.LinkValue;
-                            if (obj != null) {
-                                DumpFromUOL(uolProp, obj, wzPath);
-                            }
-                        }
-                        break;
-                    case WzPropertyType.Vector:
-                        var vectorProp = (WzVectorProperty)property;
-                        tw.WriteStartObject(vectorProp.Name);
-                        tw.WriteString(encType, encVector);
-                        tw.WriteNumber(encX, vectorProp.X.Value);
-                        tw.WriteNumber(encY, vectorProp.Y.Value);
-                        tw.WriteEndObject();
-                        break;
-                    case WzPropertyType.Video:
-                        var videoProp = (WzVideoProperty)property;
-                        tw.WriteStartObject(videoProp.Name);
-                        tw.WriteString(encType, encVideo);
-                        DumpData(tw, videoProp.WzProperties, wzPath);
-                        tw.WriteEndObject();
+                    default:
+                        writer.WriteString(nodeName, value.ToString());
                         break;
                 }
             }
+            foreach (var child in node.Nodes) {
+                var path = child.IsProperty ? Path.Combine(wzPath, child.Text.Trim()) : wzPath;
+                DumpData(writer, child, path, isCanvas);
+            }
+            if (closeObject)
+                writer.WriteEndObject();
         }
 
         protected override void Dispose() {

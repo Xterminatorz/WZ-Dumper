@@ -34,7 +34,6 @@
             this.CancelOpButton = new System.Windows.Forms.Button();
             this.versionBox = new System.Windows.Forms.TextBox();
             this.label2 = new System.Windows.Forms.Label();
-            this.MapleVersionComboBox = new System.Windows.Forms.ComboBox();
             this.label3 = new System.Windows.Forms.Label();
             this.WZFileTB = new System.Windows.Forms.TextBox();
             this.outputFolderTB = new System.Windows.Forms.TextBox();
@@ -56,6 +55,7 @@
             this.LinkTypeLabel = new System.Windows.Forms.Label();
             this.LinkTypeComboBox = new System.Windows.Forms.ComboBox();
             this.extractAsJson = new System.Windows.Forms.CheckBox();
+            this.EncryptionType = new System.Windows.Forms.TextBox();
             this.statusStrip1.SuspendLayout();
             this.menuStrip1.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.extractorThreadsNum)).BeginInit();
@@ -67,7 +67,7 @@
             this.SelectWzFileButton.Location = new System.Drawing.Point(537, 294);
             this.SelectWzFileButton.Name = "SelectWzFileButton";
             this.SelectWzFileButton.Size = new System.Drawing.Size(67, 23);
-            this.SelectWzFileButton.TabIndex = 0;
+            this.SelectWzFileButton.TabIndex = 2;
             this.SelectWzFileButton.Text = "Select File";
             this.SelectWzFileButton.UseVisualStyleBackColor = true;
             this.SelectWzFileButton.Click += new System.EventHandler(this.SelectWzFile);
@@ -79,7 +79,7 @@
             this.DumpWzButton.Location = new System.Drawing.Point(537, 354);
             this.DumpWzButton.Name = "DumpWzButton";
             this.DumpWzButton.Size = new System.Drawing.Size(72, 23);
-            this.DumpWzButton.TabIndex = 5;
+            this.DumpWzButton.TabIndex = 9;
             this.DumpWzButton.Text = "Dump";
             this.DumpWzButton.UseVisualStyleBackColor = true;
             this.DumpWzButton.Click += new System.EventHandler(this.DumpFile);
@@ -96,7 +96,7 @@
             this.Info.ReadOnly = true;
             this.Info.ScrollBars = System.Windows.Forms.ScrollBars.Both;
             this.Info.Size = new System.Drawing.Size(680, 259);
-            this.Info.TabIndex = 9;
+            this.Info.TabIndex = 0;
             this.Info.TabStop = false;
             // 
             // includePngMp3Box
@@ -106,7 +106,7 @@
             this.includePngMp3Box.Location = new System.Drawing.Point(12, 387);
             this.includePngMp3Box.Name = "includePngMp3Box";
             this.includePngMp3Box.Size = new System.Drawing.Size(149, 17);
-            this.includePngMp3Box.TabIndex = 3;
+            this.includePngMp3Box.TabIndex = 11;
             this.includePngMp3Box.Text = "Include Images and MP3s";
             this.includePngMp3Box.UseVisualStyleBackColor = true;
             this.includePngMp3Box.CheckedChanged += new System.EventHandler(this.IncludePngMp3Box_CheckedChanged);
@@ -133,7 +133,7 @@
             this.CancelOpButton.Location = new System.Drawing.Point(615, 354);
             this.CancelOpButton.Name = "CancelOpButton";
             this.CancelOpButton.Size = new System.Drawing.Size(60, 23);
-            this.CancelOpButton.TabIndex = 7;
+            this.CancelOpButton.TabIndex = 10;
             this.CancelOpButton.Text = "Cancel";
             this.CancelOpButton.UseVisualStyleBackColor = true;
             this.CancelOpButton.Click += new System.EventHandler(this.CancelOperation);
@@ -142,12 +142,12 @@
             // 
             this.versionBox.Anchor = System.Windows.Forms.AnchorStyles.Bottom;
             this.versionBox.Enabled = false;
-            this.versionBox.Location = new System.Drawing.Point(345, 355);
+            this.versionBox.Location = new System.Drawing.Point(285, 355);
             this.versionBox.MaxLength = 5;
             this.versionBox.Name = "versionBox";
             this.versionBox.ReadOnly = true;
             this.versionBox.Size = new System.Drawing.Size(42, 20);
-            this.versionBox.TabIndex = 2;
+            this.versionBox.TabIndex = 8;
             // 
             // label2
             // 
@@ -160,26 +160,12 @@
             this.label2.TabIndex = 15;
             this.label2.Text = "Encryption:";
             // 
-            // MapleVersionComboBox
-            // 
-            this.MapleVersionComboBox.Anchor = System.Windows.Forms.AnchorStyles.Bottom;
-            this.MapleVersionComboBox.FormattingEnabled = true;
-            this.MapleVersionComboBox.Items.AddRange(new object[] {
-            "None",
-            "GMS (v0.56-0.116)",
-            "EMS/MSEA"});
-            this.MapleVersionComboBox.Location = new System.Drawing.Point(76, 356);
-            this.MapleVersionComboBox.Name = "MapleVersionComboBox";
-            this.MapleVersionComboBox.Size = new System.Drawing.Size(122, 21);
-            this.MapleVersionComboBox.TabIndex = 1;
-            this.MapleVersionComboBox.KeyPress += new System.Windows.Forms.KeyPressEventHandler(this.MapleVersionComboBoxKeyPress);
-            // 
             // label3
             // 
             this.label3.Anchor = System.Windows.Forms.AnchorStyles.Bottom;
             this.label3.AutoSize = true;
             this.label3.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F);
-            this.label3.Location = new System.Drawing.Point(228, 360);
+            this.label3.Location = new System.Drawing.Point(168, 360);
             this.label3.Name = "label3";
             this.label3.Size = new System.Drawing.Size(111, 13);
             this.label3.TabIndex = 16;
@@ -193,7 +179,7 @@
             this.WZFileTB.Name = "WZFileTB";
             this.WZFileTB.ReadOnly = true;
             this.WZFileTB.Size = new System.Drawing.Size(455, 20);
-            this.WZFileTB.TabIndex = 10;
+            this.WZFileTB.TabIndex = 1;
             // 
             // outputFolderTB
             // 
@@ -203,7 +189,7 @@
             this.outputFolderTB.Name = "outputFolderTB";
             this.outputFolderTB.ReadOnly = true;
             this.outputFolderTB.Size = new System.Drawing.Size(455, 20);
-            this.outputFolderTB.TabIndex = 11;
+            this.outputFolderTB.TabIndex = 4;
             // 
             // label4
             // 
@@ -232,7 +218,7 @@
             this.openFolderButton.Location = new System.Drawing.Point(621, 324);
             this.openFolderButton.Name = "openFolderButton";
             this.openFolderButton.Size = new System.Drawing.Size(53, 23);
-            this.openFolderButton.TabIndex = 12;
+            this.openFolderButton.TabIndex = 6;
             this.openFolderButton.Text = "Open";
             this.openFolderButton.UseVisualStyleBackColor = true;
             this.openFolderButton.Click += new System.EventHandler(this.OpenFolder);
@@ -295,7 +281,7 @@
             this.includeVersionInFolderBox.Location = new System.Drawing.Point(336, 387);
             this.includeVersionInFolderBox.Name = "includeVersionInFolderBox";
             this.includeVersionInFolderBox.Size = new System.Drawing.Size(195, 17);
-            this.includeVersionInFolderBox.TabIndex = 4;
+            this.includeVersionInFolderBox.TabIndex = 13;
             this.includeVersionInFolderBox.Text = "Append File Version to Folder Name";
             this.includeVersionInFolderBox.UseVisualStyleBackColor = true;
             // 
@@ -306,7 +292,7 @@
             this.multiThreadCheckBox.Location = new System.Drawing.Point(12, 416);
             this.multiThreadCheckBox.Name = "multiThreadCheckBox";
             this.multiThreadCheckBox.Size = new System.Drawing.Size(151, 17);
-            this.multiThreadCheckBox.TabIndex = 19;
+            this.multiThreadCheckBox.TabIndex = 14;
             this.multiThreadCheckBox.Text = "Dump Files Simultaneously";
             this.multiThreadCheckBox.UseVisualStyleBackColor = true;
             this.multiThreadCheckBox.CheckedChanged += new System.EventHandler(this.MultiThreadCheckBox_CheckedChanged);
@@ -323,7 +309,7 @@
             0});
             this.extractorThreadsNum.Name = "extractorThreadsNum";
             this.extractorThreadsNum.Size = new System.Drawing.Size(39, 20);
-            this.extractorThreadsNum.TabIndex = 25;
+            this.extractorThreadsNum.TabIndex = 15;
             this.extractorThreadsNum.Value = new decimal(new int[] {
             1,
             0,
@@ -347,7 +333,7 @@
             this.SelectWzFolder.Location = new System.Drawing.Point(610, 294);
             this.SelectWzFolder.Name = "SelectWzFolder";
             this.SelectWzFolder.Size = new System.Drawing.Size(82, 23);
-            this.SelectWzFolder.TabIndex = 21;
+            this.SelectWzFolder.TabIndex = 3;
             this.SelectWzFolder.Text = "Select Folder";
             this.SelectWzFolder.UseVisualStyleBackColor = true;
             this.SelectWzFolder.Click += new System.EventHandler(this.SelectWzFolder_Click);
@@ -358,7 +344,7 @@
             this.SelectExtractDestination.Location = new System.Drawing.Point(537, 324);
             this.SelectExtractDestination.Name = "SelectExtractDestination";
             this.SelectExtractDestination.Size = new System.Drawing.Size(78, 23);
-            this.SelectExtractDestination.TabIndex = 22;
+            this.SelectExtractDestination.TabIndex = 5;
             this.SelectExtractDestination.Text = "Select Folder";
             this.SelectExtractDestination.UseVisualStyleBackColor = true;
             this.SelectExtractDestination.Click += new System.EventHandler(this.SelectExtractDestination_Click);
@@ -381,7 +367,7 @@
             this.LinkTypeComboBox.Location = new System.Drawing.Point(231, 384);
             this.LinkTypeComboBox.Name = "LinkTypeComboBox";
             this.LinkTypeComboBox.Size = new System.Drawing.Size(82, 21);
-            this.LinkTypeComboBox.TabIndex = 24;
+            this.LinkTypeComboBox.TabIndex = 12;
             this.LinkTypeComboBox.SelectedIndexChanged += new System.EventHandler(this.LinkTypeComboBox_SelectedIndexChanged);
             this.LinkTypeComboBox.KeyPress += new System.Windows.Forms.KeyPressEventHandler(this.LinkTypeComboBox_KeyPress);
             // 
@@ -392,15 +378,27 @@
             this.extractAsJson.Location = new System.Drawing.Point(336, 416);
             this.extractAsJson.Name = "extractAsJson";
             this.extractAsJson.Size = new System.Drawing.Size(104, 17);
-            this.extractAsJson.TabIndex = 26;
+            this.extractAsJson.TabIndex = 16;
             this.extractAsJson.Text = "Extract as JSON";
             this.extractAsJson.UseVisualStyleBackColor = true;
+            // 
+            // EncryptionType
+            // 
+            this.EncryptionType.Anchor = System.Windows.Forms.AnchorStyles.Bottom;
+            this.EncryptionType.Enabled = false;
+            this.EncryptionType.Location = new System.Drawing.Point(76, 355);
+            this.EncryptionType.MaxLength = 5;
+            this.EncryptionType.Name = "EncryptionType";
+            this.EncryptionType.ReadOnly = true;
+            this.EncryptionType.Size = new System.Drawing.Size(68, 20);
+            this.EncryptionType.TabIndex = 7;
             // 
             // MainForm
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(704, 461);
+            this.Controls.Add(this.EncryptionType);
             this.Controls.Add(this.extractAsJson);
             this.Controls.Add(this.extractorThreadsNum);
             this.Controls.Add(this.extractorThreadsLabel);
@@ -416,7 +414,6 @@
             this.Controls.Add(this.outputFolderTB);
             this.Controls.Add(this.WZFileTB);
             this.Controls.Add(this.label3);
-            this.Controls.Add(this.MapleVersionComboBox);
             this.Controls.Add(this.label2);
             this.Controls.Add(this.versionBox);
             this.Controls.Add(this.CancelOpButton);
@@ -454,7 +451,6 @@
 		private SafeToolStripLabel toolStripStatusLabel1;
 		private System.Windows.Forms.TextBox versionBox;
 		private System.Windows.Forms.Label label2;
-		private System.Windows.Forms.ComboBox MapleVersionComboBox;
 		private System.Windows.Forms.Label label3;
 		private System.Windows.Forms.TextBox WZFileTB;
 		private System.Windows.Forms.TextBox outputFolderTB;
@@ -476,5 +472,6 @@
         private System.Windows.Forms.Label LinkTypeLabel;
         private System.Windows.Forms.ComboBox LinkTypeComboBox;
         private System.Windows.Forms.CheckBox extractAsJson;
+        private System.Windows.Forms.TextBox EncryptionType;
     }
 }

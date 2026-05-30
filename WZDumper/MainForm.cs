@@ -1,8 +1,6 @@
-﻿using MapleLib.WzLib;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -12,6 +10,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using WzComparerR2.WzLib;
 using WzDumper.WZDumper;
 
 namespace WzDumper {
@@ -26,7 +25,7 @@ namespace WzDumper {
         public MainForm() {
             InitializeComponent();
             ToolTip toolTip = new ToolTip();
-            toolTip.SetToolTip(includePngMp3Box, "Extracts png and mp3 files along with the generated XML files");
+            toolTip.SetToolTip(includePngMp3Box, "Extracts png and mp3 files along with the generated XML/JSON files");
             string linkTypeText = "Sets the method for creating link files\n" +
                 "Note: Symbolic and Hard links cannot be created when extracting to a remote drive.\n" +
                 "Methods:\n" +
@@ -64,21 +63,8 @@ namespace WzDumper {
             }
         }
 
-        private WzMapleVersion SelectedVersion {
-            get {
-                switch (MapleVersionComboBox.SelectedIndex) {
-                    case 1:
-                        return WzMapleVersion.GMS;
-                    case 2:
-                        return WzMapleVersion.EMS;
-                    default:
-                        return WzMapleVersion.CLASSIC;
-                }
-            }
-        }
-
         private void SelectWzFile(object sender, EventArgs e) {
-            var openFile = new OpenFileDialog { Title = "Select File", Filter = "WZ Files|*.wz|WZ Image Files|*.img" };
+            var openFile = new OpenFileDialog { Title = "Select File", Filter = "WZ Files|*.wz|WZ Image Files|*.img|MS Files|*.ms|MN Files|*.mn" };
             if (openFile.ShowDialog() == DialogResult.OK) {
                 InputSelected(openFile.FileName);
             }
@@ -103,12 +89,12 @@ namespace WzDumper {
                 tb.Text = info;
         }
 
-        private void DumpListWz(WzListFile file, string fName, string directory, DateTime startTime) {
+        private void DumpListWz(Wz_Structure file, string fName, string directory, DateTime startTime) {
             var error = false;
             TextWriter tw = new StreamWriter(directory + "\\List.txt");
             try {
-                foreach (var listEntry in file.WzListEntries) {
-                    tw.WriteLine(listEntry);
+                foreach (var listEntry in file.WzNode.Nodes) {
+                    tw.WriteLine(listEntry.Text);
                 }
             } catch (Exception e) {
                 error = true;
@@ -146,56 +132,76 @@ namespace WzDumper {
         }
 
         private void DumpFile(object sender, EventArgs e) {
+            var filePath = WZFileTB.Text;
+            if (!Directory.Exists(filePath) && !File.Exists(filePath)) {
+                MessageBox.Show("Unable to access file", "Error", MessageBoxButtons.OK, MessageBoxIcon.Stop);
+                return;
+            }
             CheckOutputPath();
             UpdateToolstripStatus("Parsing...");
             DisableButtons();
-            var filePath = WZFileTB.Text;
             FileAttributes attr = File.GetAttributes(filePath);
             if (!attr.HasFlag(FileAttributes.Directory)) {
-                var ext = Path.GetExtension(filePath);
-                if (ext != null && String.Compare(ext, ".img", StringComparison.OrdinalIgnoreCase) == 0) {
-                    DumpXmlFromWzImage(filePath);
+                var extension = Path.GetExtension(filePath);
+                if (extension != null && String.Compare(extension, ".img", StringComparison.OrdinalIgnoreCase) == 0) {
+                    DumpFromWzImage(filePath);
                     return;
                 }
-                WzListFile listFile = null;
-                WzFile regFile = null;
+                Wz_Structure structure = new Wz_Structure();
                 try {
-                    if (filePath.EndsWith("List.wz", StringComparison.CurrentCultureIgnoreCase)) {
-                        listFile = new WzListFile(filePath, SelectedVersion);
-                        listFile.ParseWzFile();
+                    string[] msFileExtensions = { ".ms", ".mn" };
+                    if (msFileExtensions.Any(ext => string.Equals(Path.GetExtension(filePath), ext, StringComparison.OrdinalIgnoreCase))) {
+                        structure.LoadMsFile(filePath);
+                    } else if (structure.IsKMST1125WzFormat(filePath)) {
+                        structure.LoadKMST1125DataWz(filePath);
+                        string packsDir = Path.Combine(Path.GetDirectoryName(Path.GetDirectoryName(filePath)), "Packs");
+                        string wzFileName = Path.GetFileNameWithoutExtension(filePath);
+                        if (Directory.Exists(packsDir)) {
+                            foreach (var ext in msFileExtensions) {
+                                foreach (var msFile in Directory.GetFiles(packsDir, $"{wzFileName}*{ext}")) {
+                                    structure.LoadMsFile(msFile);
+                                }
+                            }
+                        }
                     } else {
-                        List<WzFile> s = new List<WzFile>();
-                        regFile = new WzFile(filePath, SelectedVersion, s);
-                        regFile.ParseWzFile();
+                        structure.Load(filePath, false);
                     }
                 } catch (UnauthorizedAccessException) {
-                    regFile?.Dispose();
+                    structure.Clear();
                     MessageBox.Show("Please re-run this program as an administrator.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Stop);
                     UpdateToolstripStatus("");
                     EnableButtons();
                     return;
                 } catch (Exception ex) {
-                    regFile?.Dispose();
+                    structure.Clear();
                     MessageBox.Show("An error occurred while parsing this file: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    Info.AppendText(ex.StackTrace);
+                    //Info.AppendText(ex.StackTrace);
                     UpdateToolstripStatus("");
                     EnableButtons();
                     return;
                 }
-                if (listFile == null)
-                    versionBox.Text = regFile.Version.ToString(CultureInfo.CurrentCulture);
+                var isListWz = structure.encryption.UseListWz;
+                if (structure.encryption.KnownProfiles.Count > 0) {
+                    versionBox.Text = structure.encryption.KnownProfiles[0].WzVersion.ToString();
+                }
+                if (structure.encryption.Pkg1EncType != Wz_CryptoKeyType.Unknown) {
+                    var encType = structure.encryption.Pkg1EncType.ToString();
+                    if (encType.Equals("BMS"))
+                        encType = "None";
+                    EncryptionType.Text = encType;
+                }
                 var fileName = Path.GetFileName(filePath);
                 var extractDir = outputFolderTB.Text;
                 var extractFolder = Path.Combine(extractDir, fileName);
-                if (listFile == null && includeVersionInFolderBox.Checked)
-                    extractFolder += "_v" + regFile.Version;
+                if (!isListWz && includeVersionInFolderBox.Checked && structure.encryption.KnownProfiles.Count > 0)
+                    extractFolder += "_v" + structure.encryption.KnownProfiles[0].WzVersion;
                 if (File.Exists(extractFolder)) {
                     extractFolder = GetValidFolderName(extractFolder, true);
                 }
                 if (Directory.Exists(extractFolder)) {
                     var result = MessageBox.Show(extractFolder + " already exists.\r\nDo you want to overwrite that folder?\r\nNote: Clicking No will make a new folder.", "Folder Already Exists", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Warning);
                     if (result == DialogResult.Cancel) {
-                        regFile?.Dispose();
+                        structure.Clear();
                         UpdateToolstripStatus("");
                         EnableButtons();
                         return;
@@ -206,22 +212,22 @@ namespace WzDumper {
                 }
                 if (!Directory.Exists(extractFolder))
                     Directory.CreateDirectory(extractFolder);
-                if (listFile != null) {
+                if (isListWz) {
                     Info.AppendText("Dumping data from " + fileName + " to " + extractFolder + "...\r\n");
                 } else if (includePngMp3Box.Checked) {
-                    Info.AppendText("Dumping MP3s, PNGs and XMLs from " + fileName + " to " + extractFolder + "...\r\n");
+                    Info.AppendText("Dumping MP3s, PNGs and " + GetDumpFormat() + "s from " + fileName + " to " + extractFolder + "...\r\n");
                 } else {
-                    Info.AppendText("Dumping XMLs from " + fileName + " to " + extractFolder + "...\r\n");
+                    Info.AppendText("Dumping " + GetDumpFormat() + "s from " + fileName + " to " + extractFolder + "...\r\n");
                 }
-                if (listFile != null) {
-                    DumpListWz(listFile, fileName, extractFolder, DateTime.Now);
-                    listFile.Dispose();
+                if (isListWz) {
+                    DumpListWz(structure, fileName, extractFolder, DateTime.Now);
+                    structure.Clear();
                     EnableButtons();
                 } else {
                     UpdateToolstripStatus("Preparing...");
                     CancelSource = new CancellationTokenSource();
                     var extractor = extractAsJson.Checked ? (WzExtractor)new WzJsonExtractor(this, extractDir, new DirectoryInfo(extractFolder).Name, includePngMp3Box.Checked, SelectedLinkType) : new WzXmlExtractor(this, extractDir, new DirectoryInfo(extractFolder).Name, includePngMp3Box.Checked, SelectedLinkType);
-                    CreateSingleDumperThread(regFile, extractor, fileName);
+                    CreateSingleDumperThread(structure, extractor, fileName);
                 }
             } else {
                 string filesFound = "WZ Files Found: ";
@@ -267,38 +273,33 @@ namespace WzDumper {
             return size;
         }
 
-        private void DumpXmlFromWzImage(string path) {
+        private void DumpFromWzImage(string path) {
             var fName = Path.GetFileName(path);
             if (fName == null)
                 return;
-            FileStream fStream;
-            WzImage img;
+            Wz_Structure structure = new Wz_Structure();
             try {
-                fStream = File.Open(path, FileMode.Open);
-                img = new WzImage(fName, fStream, SelectedVersion);
-                img.ParseImage();
+                structure.LoadImg(path);
             } catch (IOException ex) {
+                structure.Clear();
                 MessageBox.Show("Unable to read file: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             } catch (ArgumentException) {
+                structure.Clear();
                 MessageBox.Show("Please select a WZ Image File.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             } catch (UnauthorizedAccessException) {
+                structure.Clear();
                 MessageBox.Show("Please re-run this program as an administrator to be able to dump files that are not in the OS drive.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Stop);
                 return;
             } catch (Exception) {
+                structure.Clear();
                 MessageBox.Show("Please select a valid WZ Image File.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                return;
-            }
-            if (img.WzProperties.Count() == 0) {
-                img.Dispose();
-                fStream.Dispose();
-                MessageBox.Show("This image file contained no data when parsing. Please select a different Maple Version.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
             var open = new FolderBrowserDialog();
             if (open.ShowDialog() != DialogResult.OK) {
-                img.Dispose();
+                structure.Clear();
                 open.Dispose();
                 return;
             }
@@ -323,12 +324,11 @@ namespace WzDumper {
             CancelSource = new CancellationTokenSource();
             string startingPath = new DirectoryInfo(extractFolder).Name;
             if (extractAsJson.Checked)
-                new WzJsonExtractor(this, open.SelectedPath, startingPath, includePngMp3Box.Checked, SelectedLinkType).DumpImage(img, startingPath);
+                new WzJsonExtractor(this, open.SelectedPath, startingPath, includePngMp3Box.Checked, SelectedLinkType).DumpImage(structure.WzNode.GetNodeWzImage(), startingPath);
             else
-                new WzXmlExtractor(this, open.SelectedPath, startingPath, includePngMp3Box.Checked, SelectedLinkType).DumpImage(img, startingPath);
+                new WzXmlExtractor(this, open.SelectedPath, startingPath, includePngMp3Box.Checked, SelectedLinkType).DumpImage(structure.WzNode.GetNodeWzImage(), startingPath);
             open.Dispose();
-            img.Dispose();
-            fStream.Dispose();
+            structure.Clear();
             CancelSource.Dispose();
             var duration = DateTime.Now - startTime;
             UpdateTextBoxInfo(Info, "Finished dumping " + fName + " in " + GetDurationAsString(duration), true);
@@ -336,10 +336,10 @@ namespace WzDumper {
             EnableButtons();
         }
 
-        private void CreateSingleDumperThread(WzFile file, WzExtractor wzxml, string fileName) {
+        private void CreateSingleDumperThread(Wz_Structure file, WzExtractor extractor, string fileName) {
             IsFinished = false;
             var startTime = DateTime.Now;
-            var mainTask = Task.Factory.StartNew(() => DirectoryDumperThread(file, wzxml, true));
+            var mainTask = Task.Factory.StartNew(() => DirectoryDumperThread(file, extractor, true));
             mainTask.ContinueWith(p => {
                 var duration = DateTime.Now - startTime;
                 string message = String.Empty;
@@ -361,27 +361,35 @@ namespace WzDumper {
             }, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.FromCurrentSynchronizationContext());
         }
 
-        private void InitThread(string fileName, string dumpFolder, WzMapleVersion selectedValue) {
-            WzListFile listFile = null;
-            WzFile regFile = null;
+        private void InitThread(string fileName, string dumpFolder) {
             var message = String.Empty;
+            Wz_Structure structure = new Wz_Structure();
             try {
-                if (fileName.EndsWith("List.wz", StringComparison.CurrentCultureIgnoreCase)) {
-                    listFile = new WzListFile(fileName, selectedValue);
-                    listFile.ParseWzFile();
+                string[] msFileExtensions = { ".ms", ".mn" };
+                if (msFileExtensions.Any(ext => string.Equals(Path.GetExtension(fileName), ext, StringComparison.OrdinalIgnoreCase))) {
+                    structure.LoadMsFile(fileName);
+                } else if (structure.IsKMST1125WzFormat(fileName)) {
+                    structure.LoadKMST1125DataWz(fileName);
+                    string packsDir = Path.Combine(Path.GetDirectoryName(Path.GetDirectoryName(fileName)), "Packs");
+                    string wzFileName = Path.GetFileNameWithoutExtension(fileName);
+                    if (Directory.Exists(packsDir)) {
+                        foreach (var ext in msFileExtensions) {
+                            foreach (var msFile in Directory.GetFiles(packsDir, $"{wzFileName}*{ext}")) {
+                                structure.LoadMsFile(msFile);
+                            }
+                        }
+                    }
                 } else {
-                    List<WzFile> s = new List<WzFile>();
-                    regFile = new WzFile(fileName, selectedValue, s);
-                    regFile.ParseWzFile();
+                    structure.Load(fileName, false);
                 }
             } catch (IOException ex) {
-                regFile?.Dispose();
+                structure.Clear();
                 message = "An IO error occurred: " + ex.Message;
             } catch (UnauthorizedAccessException) {
-                regFile?.Dispose();
+                structure.Clear();
                 message = "Please re-run this program as an administrator.";
             } catch (Exception ex) {
-                regFile?.Dispose();
+                structure.Clear();
                 message = "An error occurred while parsing this file: " + ex.Message;
             }
             if (!String.IsNullOrEmpty(message)) {
@@ -390,44 +398,52 @@ namespace WzDumper {
                     IsError = true;
                 return;
             }
-            if (regFile == null && listFile == null)
-                return;
             var wzName = Path.GetFileName(fileName);
             var nFolder = Path.Combine(dumpFolder, wzName);
-            if (listFile == null && includeVersionInFolderBox.Checked)
-                nFolder += "_v" + regFile.Version;
+            var isListWz = structure.encryption.UseListWz;
+            if (!isListWz && includeVersionInFolderBox.Checked)
+                nFolder += "_v" + structure.encryption.KnownProfiles[0].WzVersion.ToString();
             nFolder = GetValidFolderName(nFolder, false);
             if (!Directory.Exists(nFolder))
                 Directory.CreateDirectory(nFolder);
-            if (listFile == null)
-                UpdateTextBoxInfo(versionBox, regFile.Version.ToString(CultureInfo.CurrentCulture), false);
-            if (listFile != null) {
+            if (!isListWz) {
+                var encType = structure.encryption.Pkg1EncType.ToString();
+                if (encType.Equals("BMS"))
+                    encType = "None";
+                EncryptionType.Text = encType;
+                UpdateTextBoxInfo(EncryptionType, encType, false);
+                UpdateTextBoxInfo(versionBox, structure.encryption.KnownProfiles[0].WzVersion.ToString(), false);
+            }
+            if (isListWz) {
                 UpdateTextBoxInfo(Info, "Dumping data from " + wzName + " to " + nFolder + "...", true);
             } else if (includePngMp3Box.Checked) {
-                UpdateTextBoxInfo(Info, "Dumping MP3s, PNGs and XMLs from " + wzName + " to " + nFolder + "...", true);
+                UpdateTextBoxInfo(Info, "Dumping MP3s, PNGs and " + GetDumpFormat() + "s from " + wzName + " to " + nFolder + "...", true);
             } else {
-                UpdateTextBoxInfo(Info, "Dumping XMLs from " + wzName + " to " + nFolder + "...", true);
+                UpdateTextBoxInfo(Info, "Dumping " + GetDumpFormat() + "s from " + wzName + " to " + nFolder + "...", true);
             }
-            if (listFile != null) {
-                DumpListWz(listFile, wzName, nFolder, DateTime.Now);
-                listFile.Dispose();
+            if (isListWz) {
+                DumpListWz(structure, wzName, nFolder, DateTime.Now);
+                structure.Clear();
             } else {
                 var extractor = extractAsJson.Checked ? (WzExtractor)new WzJsonExtractor(this, dumpFolder, new DirectoryInfo(nFolder).Name, includePngMp3Box.Checked, SelectedLinkType) : new WzXmlExtractor(this, dumpFolder, new DirectoryInfo(nFolder).Name, includePngMp3Box.Checked, SelectedLinkType);
-                DirectoryDumperThread(regFile, extractor);
+                DirectoryDumperThread(structure, extractor);
             }
+        }
+
+        private string GetDumpFormat() {
+            return extractAsJson.Checked ? "JSON" : "XML";
         }
 
         private void CreateMultipleDumperThreads(string wzFolder, IEnumerable<string> files, string dumpFolder) {
             IsFinished = false;
             var startTime = DateTime.Now;
             CancelSource = new CancellationTokenSource();
-            var version = SelectedVersion;
             var t = Task.Factory.StartNew(() => {
                 var pOps = new ParallelOptions { MaxDegreeOfParallelism = multiThreadCheckBox.Checked ? Math.Min(((string[])files).Length, (int)extractorThreadsNum.Value) : 1 };
                 Parallel.ForEach(files, pOps, file => {
                     if (CancelSource.Token.IsCancellationRequested)
                         return;
-                    InitThread(file, dumpFolder, version);
+                    InitThread(file, dumpFolder);
                 });
             });
             t.ContinueWith(p => {
@@ -451,20 +467,20 @@ namespace WzDumper {
             }, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.FromCurrentSynchronizationContext());
         }
 
-        private void DirectoryDumperThread(WzDirectory dir, WzExtractor wzxml, bool singleDump = false) {
+        private void DirectoryDumperThread(Wz_Structure dir, WzExtractor extractor, bool singleDump = false) {
             if (CancelSource.Token.IsCancellationRequested)
                 return;
             try {
-                wzxml.DumpDir(dir);
+                extractor.DumpDir(dir);
                 if (!singleDump && !CancelSource.Token.IsCancellationRequested)
-                    UpdateTextBoxInfo(Info, "Finished dumping " + dir.Name, true);
+                    UpdateTextBoxInfo(Info, "Finished dumping " + dir.WzNode.Text, true);
             } catch (Exception ex) {
                 if (!CancelSource.Token.IsCancellationRequested) {
-                    UpdateTextBoxInfo(Info, dir.Name + " Exception: " + ex.Message + " " + ex.StackTrace, true);
+                    UpdateTextBoxInfo(Info, dir.WzNode.Text + " Exception: " + ex.Message + " " + ex.StackTrace, true);
                     IsError = true;
                 }
             } finally {
-                dir.Dispose();
+                dir.Clear();
             }
         }
 
@@ -502,11 +518,6 @@ namespace WzDumper {
         }
 
         private void Form1Load(object sender, EventArgs e) {
-            if (!File.Exists(Application.StartupPath + @"\MapleLib.dll")) {
-                MessageBox.Show("Please make sure MapleLib.dll is in the program directory before executing the program.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Stop);
-                Close();
-                return;
-            }
             var args = Environment.GetCommandLineArgs();
             for (int i = 1; i < args.Length; i++) {
                 string arg = args[i];
@@ -524,7 +535,6 @@ namespace WzDumper {
                     }
                 }
             }
-            MapleVersionComboBox.SelectedIndex = 0;
             LinkTypeComboBox.DataSource = Enum.GetValues(typeof(LinkType));
             LinkTypeComboBox.SelectedItem = IsElevated ? LinkType.Symbolic : LinkType.Hard;
         }
@@ -577,7 +587,6 @@ namespace WzDumper {
             CancelOpButton.Enabled = false;
             includePngMp3Box.Enabled = true;
             includeVersionInFolderBox.Enabled = true;
-            MapleVersionComboBox.Enabled = true;
             multiThreadCheckBox.Enabled = true;
             extractAsJson.Enabled = true;
             if (!string.IsNullOrEmpty(outputFolderTB.Text))
@@ -597,7 +606,6 @@ namespace WzDumper {
             CancelOpButton.Enabled = true;
             includePngMp3Box.Enabled = false;
             includeVersionInFolderBox.Enabled = false;
-            MapleVersionComboBox.Enabled = false;
             multiThreadCheckBox.Enabled = false;
             extractAsJson.Enabled = false;
             extractorThreadsLabel.Enabled = false;
@@ -621,9 +629,6 @@ namespace WzDumper {
             }
         }
 
-        private void MapleVersionComboBoxKeyPress(object sender, KeyPressEventArgs e) {
-            e.Handled = true;
-        }
 
         #region Nested type: UpdateTextBoxDelegate
 
